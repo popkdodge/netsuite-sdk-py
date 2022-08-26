@@ -4,6 +4,7 @@
 """
 
 import base64
+from email.policy import strict
 import hashlib
 import hmac
 import logging
@@ -11,7 +12,7 @@ import os.path
 import random
 import time
 
-from zeep import Client
+from zeep import Client, Settings
 from zeep.cache import SqliteCache
 from zeep.transports import Transport
 from zeep.exceptions import Fault
@@ -70,8 +71,13 @@ class NetSuiteClient:
         else:
             transport = None
 
+        # Sasana Not Work
+        #with self._client.settings(strict=True):
+        #    response = self._client.service.myoperation()
+        settings = Settings(strict=False)
+
         # Initialize the Zeep Client
-        self._client = Client(self._wsdl_url, transport=transport)
+        self._client = Client(self._wsdl_url, transport=transport, settings=settings)
 
         # default service points to wrong data center. need to create a new service proxy and replace the default one
         self._service_proxy = self._client.create_service(
@@ -410,6 +416,15 @@ class NetSuiteClient:
         search_record = search_cls(**kwargs)
         return search_record
 
+    def search_factory_adv(self, type_name, **kwargs):
+        _type_name = type_name[0].lower() + type_name[1:]
+        if not _type_name in SEARCH_RECORD_TYPES:
+            raise NetSuiteTypeError('{} is not a searchable NetSuite type!'.format(type_name))
+        search_cls_name = '{}SearchAdvanced'.format(type_name)
+        search_cls = self.get_complex_type(search_cls_name)
+        search_record = search_cls(**kwargs)
+        return search_record
+
     def basic_search_factory(self, type_name, **kwargs):
         _type_name = type_name[0].lower() + type_name[1:]
         if not _type_name in SEARCH_RECORD_TYPES:
@@ -465,7 +480,6 @@ class NetSuiteClient:
         status = result.status
         success = status.isSuccess
         if success:
-            result.records = result.recordList.record
             return result
         else:
             exc = self._request_error('searchMoreWithId', detail=status['statusDetail'][0])
